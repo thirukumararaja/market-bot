@@ -1,0 +1,10 @@
+openai
+moviepy>=2.0
+pillow>=11.0
+boto3
+yfinance
+python-dotenv
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2

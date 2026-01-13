@@ -1,0 +1,18 @@
+# Secrets
+.env
+client_secret.json
+token.pickle
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Output files
+output/
+*.mp3
+*.mp4
+
+# OS
+.DS_Store
+Thumbs.db

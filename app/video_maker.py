@@ -1,14 +1,22 @@
 """
 video_maker.py
+Stable & headless-safe version
+
 Compatible with:
 - Python 3.14
 - moviepy 2.x
 - pillow 11.x
 """
 
+# -----------------------------
+# HEADLESS MATPLOTLIB (MUST BE FIRST)
+# -----------------------------
+import matplotlib
+matplotlib.use("Agg")  # IMPORTANT: prevents GUI crashes
+
+import matplotlib.pyplot as plt
 import os
 import yfinance as yf
-import matplotlib.pyplot as plt
 
 from moviepy import (
     ImageClip,
@@ -34,6 +42,7 @@ def create_chart(ticker: str, filename: str) -> str:
     """
     Creates a clean dark-themed chart image for Shorts background
     """
+
     data = yf.download(
         ticker,
         period="5d",
@@ -45,13 +54,15 @@ def create_chart(ticker: str, filename: str) -> str:
         raise ValueError("No data received from Yahoo Finance")
 
     close = data["Close"]
+
+    # Handle multi-index (sometimes Yahoo does this)
     if hasattr(close, "columns"):
         close = close.iloc[:, 0]
 
     close = close.ffill()
 
-    last_price = float(close.iloc[-1])
     first_price = float(close.iloc[0])
+    last_price = float(close.iloc[-1])
     pct_change = ((last_price - first_price) / first_price) * 100
 
     plt.style.use("dark_background")
@@ -97,11 +108,17 @@ def create_video(
     - Disclaimer
     """
 
+    if not os.path.exists(chart_path):
+        raise FileNotFoundError(f"Chart not found: {chart_path}")
+
+    if not os.path.exists(audio_path):
+        raise FileNotFoundError(f"Audio not found: {audio_path}")
+
     os.makedirs("output", exist_ok=True)
     output_path = os.path.join("output", output_name)
 
     # -----------------------------
-    # AUDIO (SAFE)
+    # AUDIO
     # -----------------------------
     audio = AudioFileClip(audio_path)
     duration = min(audio.duration, DEFAULT_DURATION)
@@ -117,7 +134,7 @@ def create_video(
     )
 
     # -----------------------------
-    # TITLE
+    # TITLE TEXT
     # -----------------------------
     title = (
         TextClip(
@@ -157,7 +174,7 @@ def create_video(
     )
 
     # -----------------------------
-    # COMPOSE
+    # FINAL COMPOSITION
     # -----------------------------
     final_video = CompositeVideoClip(
         [background, title, disclaimer_bg, disclaimer_text],
@@ -177,13 +194,16 @@ def create_video(
 
 
 # -----------------------------
-# TEST
+# MANUAL TEST
 # -----------------------------
 if __name__ == "__main__":
     chart = create_chart("^NSEI", "nifty_test.png")
+
     video = create_video(
         chart_path=chart,
         audio_path="output/postmarket.mp3",
-        output_name="test_video.mp4"
+        output_name="test_video.mp4",
+        title_text="NIFTY 50\nPOST MARKET REPORT"
     )
-    print("Video created:", video)
+
+    print("✅ Video created:", video)

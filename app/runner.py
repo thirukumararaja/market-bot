@@ -1,157 +1,125 @@
 """
-runner.py
-Railway-safe version (SCRIPT ONLY)
-- No video
-- No moviepy
-- No YouTube upload
+runner.py - Railway-ready version
+
+Auto-selects task based on IST time:
+- Premarket: Mon–Fri 8:00 AM
+- Postmarket: Mon–Fri 6:00 PM
+- Weekly: Sunday 10:00 AM
+
+Generates script → TTS → Video → Upload to YouTube
+Logs everything in console for Railway
+
+Requires environment variables:
+- OPENAI_API_KEY
+- YOUTUBE_CLIENT_ID
+- YOUTUBE_CLIENT_SECRET
+- YOUTUBE_REFRESH_TOKEN
 """
 
-import datetime
+import os
+from datetime import datetime
 import pytz
+from summarizer import create_premarket_script, create_postmarket_script, create_weekly_script
+from video_maker import create_video_from_script
+from utils import fetch_market_data, fetch_global_data, fetch_sectors, fetch_derivatives
 
-from data_fetcher import fetch_index_daily
-from summarizer import (
-    create_premarket_script,
-    create_postmarket_script,
-    create_weekly_script
-)
-
+# -----------------------------
+# TIME & TASK SELECTION
+# -----------------------------
 IST = pytz.timezone("Asia/Kolkata")
+now = datetime.now(IST)
+hour = now.hour
+weekday = now.weekday()  # Monday=0, Sunday=6
 
-
-# -----------------------------
-# TIME HELPERS
-# -----------------------------
-def now_ist():
-    return datetime.datetime.now(IST)
-
-
-def is_sunday():
-    return now_ist().weekday() == 6
-
-
-def current_hour():
-    return now_ist().hour
-
-
-# -----------------------------
-# REPORT RUNNERS (TEXT ONLY)
-# -----------------------------
-def run_premarket():
-    print("🟢 PRE-MARKET SCRIPT")
-
-    nifty = fetch_index_daily("^NSEI")
-
-    global_cues = {
-        "us_markets": "Mixed",
-        "asia": "Cautious",
-        "crude": "Stable",
-        "usd_inr": "Range-bound"
-    }
-
-    derivatives = {
-        "pcr": None,
-        "vix": None,
-        "oi_trend": None,
-        "max_pain": None
-    }
-
-    script = create_premarket_script(
-        nifty=nifty,
-        global_cues=global_cues,
-        derivatives=derivatives
-    )
-
-    print("\n--- PREMARKET SCRIPT ---\n")
-    print(script)
-    print("\n------------------------\n")
-
-
-def run_postmarket():
-    print("🔵 POST-MARKET SCRIPT")
-
-    nifty = fetch_index_daily("^NSEI")
-
-    sectors = {
-        "gainers": ["IT", "Pharma"],
-        "losers": ["FMCG", "Metal"],
-        "rotation": "Selective buying",
-        "breadth": "Neutral"
-    }
-
-    derivatives = {
-        "pcr": None,
-        "vix": None,
-        "oi_trend": None,
-        "max_pain": None
-    }
-
-    script = create_postmarket_script(
-        nifty=nifty,
-        sectors=sectors,
-        derivatives=derivatives
-    )
-
-    print("\n--- POSTMARKET SCRIPT ---\n")
-    print(script)
-    print("\n-------------------------\n")
-
-
-def run_weekly():
-    print("🟣 WEEKLY SCRIPT")
-
-    weekly_index = fetch_index_daily("^NSEI")
-
-    sectors = {
-        "leaders": ["IT", "Banking"],
-        "laggards": ["Metal"]
-    }
-
-    macro = {
-        "inflation": "Stable",
-        "rates": "Unchanged",
-        "global": "Mixed"
-    }
-
-    derivatives = {
-        "vix_trend": "Low volatility"
-    }
-
-    script = create_weekly_script(
-        weekly_index=weekly_index,
-        sectors=sectors,
-        macro=macro,
-        derivatives=derivatives
-    )
-
-    print("\n--- WEEKLY SCRIPT ---\n")
-    print(script)
-    print("\n---------------------\n")
-
-
-# -----------------------------
-# ENTRY POINT
-# -----------------------------
-def main():
-    now = now_ist()
-    print("⏰ Current IST:", now)
-
-    # Saturday
-    if now.weekday() == 5:
-        print("Saturday: No report")
-        return
-
-    # Sunday
-    if is_sunday():
-        run_weekly()
-        return
-
-    # Weekdays
-    if current_hour() < 12:
-        run_premarket()
+# Decide task
+if weekday <= 4:  # Monday–Friday
+    if hour == 8:
+        TASK = "premarket"
+    elif hour == 18:
+        TASK = "postmarket"
     else:
-        run_postmarket()
+        TASK = None
+elif weekday == 6:  # Sunday
+    if hour == 10:
+        TASK = "weekly"
+    else:
+        TASK = None
+else:
+    TASK = None
 
+if TASK is None:
+    print(f"[{now}] No task scheduled at this time. Exiting.")
+    exit(0)
 
-if __name__ == "__main__":
-    main()
+print(f"[{now}] Running task: {TASK.upper()}")
+
+# -----------------------------
+# FETCH DATA
+# -----------------------------
+print("Fetching market & global data...")
+nifty_data = fetch_market_data("NIFTY")
+banknifty_data = fetch_market_data("BANKNIFTY")
+global_data = fetch_global_data()
+sectors_data = fetch_sectors()
+derivatives_data = fetch_derivatives()
+
+# -----------------------------
+# GENERATE SCRIPT
+# -----------------------------
+script_text = ""
+if TASK == "premarket":
+    script_text = create_premarket_script(
+        nifty=nifty_data,
+        global_cues=global_data,
+        derivatives=derivatives_data,
+        news="Global markets update"
+    )
+elif TASK == "postmarket":
+    script_text = create_postmarket_script(
+        nifty=nifty_data,
+        sectors=sectors_data,
+        derivatives=derivatives_data,
+        global_ref=global_data
+    )
+elif TASK == "weekly":
+    script_text = create_weekly_script(
+        weekly_index=nifty_data,
+        sectors=sectors_data,
+        macro=global_data,
+        derivatives=derivatives_data
+    )
+
+print(f"Script generated ({len(script_text.split())} words).")
+
+# -----------------------------
+# CREATE VIDEO
+# -----------------------------
+output_file = f"output/{TASK}_{now.strftime('%Y%m%d_%H%M')}.mp4"
+print(f"Creating video: {output_file}")
+create_video_from_script(script_text, output_file)
+print("Video created successfully.")
+
+# -----------------------------
+# UPLOAD TO YOUTUBE
+# -----------------------------
+print("Uploading video to YouTube...")
+from youtube_uploader import upload_video  # your existing uploader
+title_map = {
+    "premarket": f"Premarket Report - {now.strftime('%d %b %Y')}",
+    "postmarket": f"Postmarket Report - {now.strftime('%d %b %Y')}",
+    "weekly": f"Weekly Market Report - Week of {now.strftime('%d %b %Y')}"
+}
+description_map = {
+    "premarket": "Indian stock market premarket analysis. #Nifty #BankNifty #StockMarket",
+    "postmarket": "Indian stock market postmarket analysis. #Nifty #BankNifty #StockMarket",
+    "weekly": "Weekly market analysis and outlook. #Nifty #BankNifty #StockMarket"
+}
+
+upload_video(
+    file_path=output_file,
+    title=title_map[TASK],
+    description=description_map[TASK]
+)
+print(f"[{now}] Video uploaded successfully!")
+
+print(f"[{now}] Task {TASK.upper()} completed.")

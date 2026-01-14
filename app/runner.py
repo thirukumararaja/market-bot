@@ -1,6 +1,9 @@
 """
 runner.py
-Main orchestrator for Market Bot
+Railway-safe version (SCRIPT ONLY)
+- No video
+- No moviepy
+- No YouTube upload
 """
 
 import datetime
@@ -12,16 +15,12 @@ from summarizer import (
     create_postmarket_script,
     create_weekly_script
 )
-from tts_adapter import text_to_speech
-from video_maker import create_chart, create_video
-from youtube_uploader import upload_video
-
 
 IST = pytz.timezone("Asia/Kolkata")
 
 
 # -----------------------------
-# HELPERS
+# TIME HELPERS
 # -----------------------------
 def now_ist():
     return datetime.datetime.now(IST)
@@ -35,34 +34,11 @@ def current_hour():
     return now_ist().hour
 
 
-def safe_audio(script: str, filename: str) -> str:
-    """
-    Ensures audio always exists.
-    If Polly fails, creates a silent placeholder MP3.
-    """
-    audio = text_to_speech(script, filename)
-    if audio:
-        return audio
-
-    # 🔇 Silent fallback (moviepy can still render)
-    print("⚠️ Polly not configured. Using silent audio.")
-    import os
-    from moviepy import AudioClip
-
-    os.makedirs("output", exist_ok=True)
-    path = f"output/{filename}"
-
-    silent = AudioClip(lambda t: 0, duration=30)
-    silent.write_audiofile(path, fps=44100)
-
-    return path
-
-
 # -----------------------------
-# REPORT RUNNERS
+# REPORT RUNNERS (TEXT ONLY)
 # -----------------------------
 def run_premarket():
-    print("Running PREMARKET report")
+    print("🟢 PRE-MARKET SCRIPT")
 
     nifty = fetch_index_daily("^NSEI")
 
@@ -86,26 +62,13 @@ def run_premarket():
         derivatives=derivatives
     )
 
-    audio = safe_audio(script, "premarket.mp3")
-    chart = create_chart("^NSEI", "nifty_premarket.png")
-
-    video = create_video(
-        chart_path=chart,
-        audio_path=audio,
-        output_name="premarket.mp4",
-        title_text="NIFTY\nPRE-MARKET REPORT"
-    )
-
-    upload_video(
-        file_path=video,
-        title="Premarket Report | Nifty",
-        description="Educational purposes only. Not investment advice.",
-        tags=["Nifty", "Premarket", "Stock Market", "Shorts"]
-    )
+    print("\n--- PREMARKET SCRIPT ---\n")
+    print(script)
+    print("\n------------------------\n")
 
 
 def run_postmarket():
-    print("Running POST-MARKET report")
+    print("🔵 POST-MARKET SCRIPT")
 
     nifty = fetch_index_daily("^NSEI")
 
@@ -129,26 +92,13 @@ def run_postmarket():
         derivatives=derivatives
     )
 
-    audio = safe_audio(script, "postmarket.mp3")
-    chart = create_chart("^NSEI", "nifty_postmarket.png")
-
-    video = create_video(
-        chart_path=chart,
-        audio_path=audio,
-        output_name="postmarket.mp4",
-        title_text="NIFTY\nPOST-MARKET REPORT"
-    )
-
-    upload_video(
-        file_path=video,
-        title="Post Market Report | Nifty",
-        description="Educational purposes only. Not investment advice.",
-        tags=["Nifty", "Post Market", "Stock Market", "Shorts"]
-    )
+    print("\n--- POSTMARKET SCRIPT ---\n")
+    print(script)
+    print("\n-------------------------\n")
 
 
 def run_weekly():
-    print("Running WEEKLY report")
+    print("🟣 WEEKLY SCRIPT")
 
     weekly_index = fetch_index_daily("^NSEI")
 
@@ -174,22 +124,9 @@ def run_weekly():
         derivatives=derivatives
     )
 
-    audio = safe_audio(script, "weekly.mp3")
-    chart = create_chart("^NSEI", "nifty_weekly.png")
-
-    video = create_video(
-        chart_path=chart,
-        audio_path=audio,
-        output_name="weekly.mp4",
-        title_text="NIFTY\nWEEKLY ANALYSIS"
-    )
-
-    upload_video(
-        file_path=video,
-        title="Weekly Market Analysis | Nifty",
-        description="Educational purposes only. Not investment advice.",
-        tags=["Nifty", "Weekly Analysis", "Stock Market"]
-    )
+    print("\n--- WEEKLY SCRIPT ---\n")
+    print(script)
+    print("\n---------------------\n")
 
 
 # -----------------------------
@@ -197,7 +134,7 @@ def run_weekly():
 # -----------------------------
 def main():
     now = now_ist()
-    print("Current IST time:", now)
+    print("⏰ Current IST:", now)
 
     # Saturday
     if now.weekday() == 5:
